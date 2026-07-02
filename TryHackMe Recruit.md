@@ -36,4 +36,31 @@ server-status        (Status: 403) [Size: 277]
 Progress: 89997 / 89997 (100.00%)
 ```
 
+Mail look's intresting lets check it out!
+```
+Hi Team,
+
+Just a quick update to confirm that the new Recruitment Portal
+has been deployed successfully and is functioning as expected.
+
+Weâ€™ve completed basic validation:
+- Login page is accessible
+- Candidate dashboard loads correctly
+- API documentation page is live
+
+As discussed during deployment:
+- HR login credentials (username: hr) are currently stored in the application
+  configuration file (config.php) for ease of access during
+  the initial rollout phase.
+- Administrator credentials are NOT stored in the application
+  files and are securely maintained within the backend database.
+
+Please let us know if there are any issues or if further changes
+are required.
+
+Thanks,
+HR Operations
+Recruitment Team
+```
+
 
