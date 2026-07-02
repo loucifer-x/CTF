@@ -63,5 +63,9 @@ HR Operations
 Recruitment Team
 ```
 We have recived the first part of the puzzle, the username! It say's the password is in config.php but after check I found out the page is blank. There must be another way to view it. After checking out other pages that I'm allowed to view I find a intresting snippet on the API page. ```You can fetch a candidate CV using the following endpoint:
-/file.php?cv=<URL>```
+/file.php?cv=<URL>``` So with this infomation I assumed you can grab the contents of the config.php from the API. 
+```http://10.81.182.40/file.php?cv=file://config.php``` I was right, and I finally recievded the password for HR **hr########d123** After logging in we get the first flag!
+
+
+
 
