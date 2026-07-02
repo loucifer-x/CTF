@@ -13,7 +13,7 @@ Answer the questions below
 Let's start with some basic reconnisance to discover some secrets!
 
 
-nmap -sS 10.81.182.40
+**nmap -sS 10.81.182.40**
 ```
 Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 11:12 -0400
 Nmap scan report for 10.81.182.40
@@ -24,7 +24,9 @@ PORT   STATE SERVICE
 53/tcp open  domain
 80/tcp open  http
 ```
-gobuster dir -w raft-medium-directories.txt -u http://10.81.182.40 -x html, php, txt, js
+after using nmap I have found 3 open ports. Port 80 takes us to a login page! Time to enumerate some directories!
+
+**gobuster dir -w raft-medium-directories.txt -u http://10.81.182.40 -x html, php, txt, js**
 ```
 assets               (Status: 301) [Size: 313] [--> http://10.81.182.40/assets/]
 mail                 (Status: 301) [Size: 311] [--> http://10.81.182.40/mail/]
@@ -33,3 +35,5 @@ phpmyadmin           (Status: 301) [Size: 317] [--> http://10.81.182.40/phpmyadm
 server-status        (Status: 403) [Size: 277]
 Progress: 89997 / 89997 (100.00%)
 ```
+
+
