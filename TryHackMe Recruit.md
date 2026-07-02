@@ -4,13 +4,14 @@ Recruit has just launched its new recruitment portal, allowing HR staff to manag
 Can you gain an initial foothold, escalate your access, and ultimately log in as the administrator?
 Answer the questions below
 
-What is the flag value after logging in as a normal user?
+**What is the flag value after logging in as a normal user?**
 
-What is the flag value after logging in as admin?
+**What is the flag value after logging in as admin?**
+
+---
 
 Let's start with some basic reconnisance to discover some secrets!
 
----
 
 nmap -sS 10.81.182.40
 ```
