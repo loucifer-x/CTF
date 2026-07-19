@@ -9,3 +9,7 @@ You can access the web app here: http://10.81.170.118:5000
 
 ### Objective
 What is the flag?
+
+
+
+Manually crawling the website I found a "Survery" page. After running gobuster ``gobuster dir -w raft-medium-word.stxt -u http://10.81.170.118:5000 -x php, txt, html``
