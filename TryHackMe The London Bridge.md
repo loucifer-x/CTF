@@ -107,9 +107,29 @@ I logged in and found the first flag in the `__pycache__` directory:
 THM{l0n6_##########_qu33n}
 ```
 
+## Identifying the Privilege Escalation Path
+
+Before searching for an exploit, I wanted to confirm exactly what I was dealing with:
+
+```
+beth@london:~$ uname -a
+Linux london 4.15.0-112-generic #113-Ubuntu SMP Thu Jul 9 23:41:39 UTC 2020 x86_64 x86_64 x86_64 GNU/Linux
+```
+
+This gave me the kernel version (`4.15.0-112-generic`) and confirmed the box was **Ubuntu**, running an **SMP (multi-core)** kernel. The `4.15.0` line is characteristic of Ubuntu 18.04 LTS, and this particular build dates to mid-2020 — meaning it predates several years of kernel security patches.
+
+Searching for local privilege escalation exploits matching that kernel/distro combination led me to [zerozenxlabs/ZDI-24-020](https://github.com/zerozenxlabs/ZDI-24-020), a public exploit for **CVE-2023-6546** — a race condition in the Linux kernel's GSM multiplexing (`tty/n_gsm`) driver leading to a use-after-free. The exploit's own documentation states it targets **Ubuntu 18.04+20.04 LTS** systems and specifically requires an **SMP kernel** to reliably win the race condition — both of which matched what `uname -a` had just told me. That made it a strong candidate over other, more generic privesc exploits.
+
 ## Privilege Escalation
 
-Next, I needed root privileges. After some research, I found the system was vulnerable to a privilege escalation exploit at [zerozenxlabs/ZDI-24-020](https://github.com/zerozenxlabs/ZDI-24-020/blob/main/exploit.c), which worked and gave me root access. From `/root`, I retrieved the admin flag:
+I pulled the exploit and compiled it on the target:
+
+```
+gcc exploit.c -o exploit -lpthread
+./exploit
+```
+
+It worked and gave me root access. From `/root`, I retrieved the admin flag:
 
 ```
 THM{l0nd0n_######_p47ch3d}
@@ -140,5 +160,6 @@ This room involved chaining multiple vulnerabilities together:
 4. Exploitation of an **SSRF** vulnerability, bypassing localhost filtering with an obfuscated IP (`0177.0.0.1`), to reach internal-only files.
 5. Directory fuzzing over SSRF to locate an exposed `.ssh` directory containing a private key.
 6. Authentication over SSH to obtain the user flag.
-7. **Privilege escalation** via a public CVE exploit (ZDI-24-020) to gain root and obtain the root flag.
-8. Extraction and decryption of a Firefox saved-login database (`key4.db` + `logins.json`) to recover Charles's password.
+7. Kernel and distro fingerprinting via `uname -a` to identify a matching **privilege escalation** exploit — CVE-2023-6546 (ZDI-24-020), which targets Ubuntu 18.04/20.04 SMP kernels.
+8. Exploitation of CVE-2023-6546 to gain root and obtain the root flag.
+9. Extraction and decryption of a Firefox saved-login database (`key4.db` + `logins.json`) to recover Charles's password.
