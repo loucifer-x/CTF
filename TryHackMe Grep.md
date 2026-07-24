@@ -6,7 +6,6 @@ Welcome to the OSINT challenge, part of TryHackMe's Red Teaming Path. In this ta
 
 SuperSecure Corp, a fast-paced startup, is building a blogging platform and has invited security professionals to assess it. The challenge combines OSINT techniques — gathering information from publicly accessible sources — with exploiting vulnerabilities in the web application itself.
 
-> **Note:** No local privilege escalation is necessary to answer the questions.
 
 **Questions to answer:**
 
