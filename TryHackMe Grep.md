@@ -6,6 +6,16 @@ Welcome to the OSINT challenge, part of TryHackMe's Red Teaming Path. In this ta
 
 SuperSecure Corp, a fast-paced startup, is building a blogging platform and has invited security professionals to assess it. The challenge combines OSINT techniques — gathering information from publicly accessible sources — with exploiting vulnerabilities in the web application itself.
 
+> **Note:** No local privilege escalation is necessary to answer the questions.
+
+**Questions to answer:**
+
+- What is the API key that allows a user to register on the website?
+- What is the first flag?
+- What is the email of the "admin" user?
+- What is the host name of the web application that allows a user to check an email for a possible password leak?
+- What is the password of the "admin" user?
+
 ---
 
 ## Initial Recon
@@ -133,5 +143,7 @@ admin_tryhackme!
 
 - API keys and secrets shouldn't live in client-side JavaScript, and rotating a leaked key is pointless if its full history is still sitting in a public (or dork-able) Git repository.
 - Signature/magic-byte checks on file uploads are trivial to satisfy without giving up the malicious payload — validate content type *and* restrict what an uploaded file is allowed to do (e.g., no script execution in the upload directory).
+- Non-standard ports found during recon are worth revisiting after gaining a foothold — they can point to entirely separate internal applications that don't show up in the main app's attack surface.
+- Backup files and internal databases left reachable from a web shell can leak credentials for other, unrelated services.uploaded file is allowed to do (e.g., no script execution in the upload directory).
 - Non-standard ports found during recon are worth revisiting after gaining a foothold — they can point to entirely separate internal applications that don't show up in the main app's attack surface.
 - Backup files and internal databases left reachable from a web shell can leak credentials for other, unrelated services.
